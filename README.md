@@ -1,8 +1,6 @@
 # Real-time Object Tracking and Detection for Video-streams
 
 
-*Implementation under progress*
-
 
 ## Pre-req:
 
@@ -55,7 +53,7 @@ python3 src/main.py --model model_data/MobileNetSSD_deploy.caffemodel --config m
 ```
 
 
-*Note: --input can be ommitted, which will activate stream from webcam. New objects are detected when current objects being tracked are lost, or when 'q' is pressed*
+*Note: --input can be ommitted, which will activate stream from webcam. New objects are detected when all current objects being tracked are lost, or when 'q' is pressed*
 
 
 ## MobileNet_SSD with KCF tracker
