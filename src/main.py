@@ -13,13 +13,14 @@ import imutils
 from object_detection import object_detector
 
 
-def drawPred(frame, bboxes, objects_detected):
+def drawPred(frame, objects_detected):
 
     objects_list = list(objects_detected.keys())
 
-    for i,box in enumerate(bboxes):
-        object_  = objects_list[i]
-        label = '%s: %.2f' % (object_, objects_detected.get(object_)[1])
+    for object_, info in objects_detected.items():
+        box = info[0]
+        confidence = info[1]
+        label = '%s: %.2f' % (object_, confidence)
         p1 = (int(box[0]), int(box[1]))
         p2 = (int(box[0] + box[2]), int(box[1] + box[3]))
         cv.rectangle(frame, p1, p2, (0, 255, 0))
@@ -28,8 +29,8 @@ def drawPred(frame, bboxes, objects_detected):
         labelSize, baseLine = cv.getTextSize(label, cv.FONT_HERSHEY_SIMPLEX, 0.5, 1)
         top = max(top, labelSize[1])
         cv.rectangle(frame, (left, top - labelSize[1]), (left + labelSize[0], top + baseLine), (255, 255, 255), cv.FILLED)
-        cv.putText(frame, label, (left, top), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0))
-
+        cv.putText(frame, label, (left, top), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0))  
+       
 
 def postprocess(frame, out, threshold, classes, framework):
 
@@ -59,7 +60,7 @@ def postprocess(frame, out, threshold, classes, framework):
                         break
                     label_with_num = str(label) + '_' + str(i)
                     i = i+1
-                objects_detected[label_with_num] = ((int(left),int(top),int(right - left), int(bottom-top)),confidence) 
+                objects_detected[label_with_num] = [(int(left),int(top),int(right - left), int(bottom-top)),confidence] 
                 #print(label_with_num + ' at co-ordinates '+ str(objects_detected[label_with_num]))
 
     else:
@@ -86,12 +87,12 @@ def postprocess(frame, out, threshold, classes, framework):
                         break
                     label_with_num = str(label) + '_' + str(i)
                     i = i+1
-                objects_detected[label_with_num] = ((int(left),int(top),int(width),int(height)),confidence)  
+                objects_detected[label_with_num] = [(int(left),int(top),int(width),int(height)),confidence]
                 #print(label_with_num + ' at co-ordinates '+ str(objects_detected[label_with_num]))
 
     return objects_detected
 
-def intermediate_detections(stream, predictor, multi_tracker, tracker, threshold, classes):
+def intermediate_detections(stream, predictor, tracker, threshold, classes):
     
     
     _,frame = stream.read()
@@ -101,25 +102,25 @@ def intermediate_detections(stream, predictor, multi_tracker, tracker, threshold
     objects_list = list(objects_detected.keys())
     print('Tracking the following objects', objects_list)
 
-    multi_tracker = cv.MultiTracker_create()
+    trackers_dict = dict()    
+    #multi_tracker = cv.MultiTracker_create()
 
     if len(objects_list) > 0:
-    
-        #ToDo: Add tracker cmd line argument
-        for items in objects_detected.items():
-            ok = multi_tracker.add(cv.TrackerKCF_create(), frame, items[1][0])
-            #ok = multi_tracker.add(cv.TrackerMedianFlow_create(), frame, items[1])  
+        
+        trackers_dict = {key : cv.TrackerKCF_create() for key in objects_list}
+        for item in objects_list:
+            trackers_dict[item].init(frame, objects_detected[item][0])
             
-    return stream, objects_detected, objects_list, multi_tracker 
+    return stream, objects_detected, objects_list, trackers_dict
 
 def process(args):
 
     objects_detected = dict()
 
-    #ToDo: Put this in intermediate_detection
-    tracker_types = ['BOOSTING', 'MIL','KCF', 'TLD', 'MEDIANFLOW', 'GOTURN']
-    tracker_type = tracker_types[2]
-    tracker = None
+    #tracker_types = ['BOOSTING', 'MIL','KCF', 'TLD', 'MEDIANFLOW', 'GOTURN']
+    #tracker_type = tracker_types[2]
+    #tracker = None
+
     """
     if tracker_type == 'BOOSTING':
         tracker = cv.TrackerBoosting_create()
@@ -134,8 +135,8 @@ def process(args):
     if tracker_type == 'GOTURN':
         tracker = cv.TrackerGOTURN_create()
     """
+
     predictor = object_detector(args.model, args.config)
-    multi_tracker = cv.MultiTracker_create()
     stream = cv.VideoCapture(args.input if args.input else 0)
     window_name = "Tracking in progress"
     cv.namedWindow(window_name, cv.WINDOW_NORMAL)
@@ -158,7 +159,7 @@ def process(args):
     else:
         classes = list(np.arange(0,100))
 
-    stream, objects_detected, objects_list, multi_tracker = intermediate_detections(stream, predictor, multi_tracker, tracker, args.thr, classes)    
+    stream, objects_detected, objects_list, trackers_dict = intermediate_detections(stream, predictor, tracker, args.thr, classes)    
 
     while stream.isOpened():
     
@@ -169,32 +170,46 @@ def process(args):
 
         timer = cv.getTickCount()
 
-        #Even when multitracker fails,  bboxes will have old values
-        #But ok will be false
-        if len(objects_list) > 0:
-            ok, bboxes = multi_tracker.update(frame)
+        """
+        #Did not use OpenCV's multitracker because of the restrivtive nature of its Python counterpart.
+        #If one tracker in the multitracker fails, there's no way to find out which tracker failed.
+        #There's no easy way to delete individual trackers in the multitracker object.
+        #Even when multitracker fails,  bboxes will have old values, but 'ok' will be false
+        
+        #if len(objects_list) > 0:
+            #ok, bboxes = multi_tracker.update(frame)
         #bboxes = multi_tracker.getObjects()
         #ok = multi_tracker.empty()
-
+        """
         
+        print('Tracking - ',objects_list)
+
+        if len(objects_detected) > 0:
+            del_items = []
+            for obj,tracker in trackers_dict.items():
+                ok, bbox = tracker.update(frame)
+                if ok:
+                    objects_detected[obj][0] = bbox
+                else:
+                    print('Failed to track ', obj)
+                    del_items.append(obj) 
+        
+            for item in del_items:            
+                trackers_dict.pop(item)
+                objects_detected.pop(item)
+                
         fps = cv.getTickFrequency() / (cv.getTickCount() - timer)
 
-        
-        print(bboxes, ' --- ', ok )
-        #if ok and len(bboxes) > 0:
-        #if ok and len(bboxes) > 0: 
-        
-        if ok and len(bboxes) > 0 : 
-            drawPred(frame, bboxes, objects_detected)
+        if len(objects_detected) > 0:
+            drawPred(frame, objects_detected)
             # Display FPS on frame
             cv.putText(frame, "FPS : " + str(int(fps)), (100,50), cv.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50), 2)
 
         else:
             cv.putText(frame, 'Tracking Failure. Trying to detect more objects', (50,80), cv.FONT_HERSHEY_SIMPLEX, 0.75,(0,0,255),2)
-            stream, objects_detected, objects_list, multi_tracker = intermediate_detections(stream, predictor, multi_tracker, tracker, args.thr, classes)   
+            stream, objects_detected, objects_list, trackers_dict = intermediate_detections(stream, predictor, tracker, args.thr, classes)   
             
         
-
         # Display result
         #If resolution is too big, resize the video
         if frame.shape[1] > 1240:
@@ -211,7 +226,7 @@ def process(args):
         if k == ord('q'):
             print('Refreshing. Detecting New objects')
             cv.putText(frame, 'Refreshing. Detecting New objects', (100,80), cv.FONT_HERSHEY_SIMPLEX, 0.75,(0,0,255),2)
-            stream, objects_detected, objects_list, multi_tracker = intermediate_detections(stream, predictor, multi_tracker, tracker, args.thr, classes)  
+            stream, objects_detected, objects_list, trackers_dict = intermediate_detections(stream, predictor, tracker, args.thr, classes)  
             
         # Exit if ESC pressed    
         if k == 27 : break 
