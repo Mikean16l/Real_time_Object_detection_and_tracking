@@ -160,7 +160,7 @@ def process(args):
     else:
         classes = list(np.arange(0,100))
 
-    stream, objects_detected, objects_list, trackers_dict = intermediate_detections(stream, predictor, tracker, args.thr, classes)    
+    stream, objects_detected, objects_list, trackers_dict = intermediate_detections(stream, predictor, args.thr, classes)    
 
     while stream.isOpened():
     
