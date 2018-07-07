@@ -92,7 +92,7 @@ def postprocess(frame, out, threshold, classes, framework):
 
     return objects_detected
 
-def intermediate_detections(stream, predictor, tracker, threshold, classes):
+def intermediate_detections(stream, predictor, threshold, classes):
     
     
     _,frame = stream.read()
@@ -117,11 +117,12 @@ def process(args):
 
     objects_detected = dict()
 
+    """
     #tracker_types = ['BOOSTING', 'MIL','KCF', 'TLD', 'MEDIANFLOW', 'GOTURN']
     #tracker_type = tracker_types[2]
     #tracker = None
 
-    """
+    
     if tracker_type == 'BOOSTING':
         tracker = cv.TrackerBoosting_create()
     if tracker_type == 'MIL':
@@ -207,7 +208,7 @@ def process(args):
 
         else:
             cv.putText(frame, 'Tracking Failure. Trying to detect more objects', (50,80), cv.FONT_HERSHEY_SIMPLEX, 0.75,(0,0,255),2)
-            stream, objects_detected, objects_list, trackers_dict = intermediate_detections(stream, predictor, tracker, args.thr, classes)   
+            stream, objects_detected, objects_list, trackers_dict = intermediate_detections(stream, predictor, args.thr, classes)   
             
         
         # Display result
@@ -226,7 +227,7 @@ def process(args):
         if k == ord('q'):
             print('Refreshing. Detecting New objects')
             cv.putText(frame, 'Refreshing. Detecting New objects', (100,80), cv.FONT_HERSHEY_SIMPLEX, 0.75,(0,0,255),2)
-            stream, objects_detected, objects_list, trackers_dict = intermediate_detections(stream, predictor, tracker, args.thr, classes)  
+            stream, objects_detected, objects_list, trackers_dict = intermediate_detections(stream, predictor, args.thr, classes)  
             
         # Exit if ESC pressed    
         if k == 27 : break 
