@@ -5,17 +5,17 @@ Email: apoorva.v94@gmail.com
 
 import cv2 as cv
 import argparse
-import sys
+#import sys
 import numpy as np
-import time
-from copy import deepcopy
-import imutils
+#import time
+#from copy import deepcopy
+#import imutils
 from object_detection import object_detector
 
 
 def drawPred(frame, objects_detected):
 
-    objects_list = list(objects_detected.keys())
+    #objects_list = list(objects_detected.keys())
 
     for object_, info in objects_detected.items():
         box = info[0]
